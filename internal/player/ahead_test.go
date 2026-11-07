@@ -77,8 +77,10 @@ func eventually(t *testing.T, what string, cond func() bool) {
 func TestNextSongComesInAhead(t *testing.T) {
 	p, ch, src, q := servedQueue(t, "a", "b")
 	p.PlayQueue(q, 0)
-	settle(t, ch, p)
+	// The UI has not accepted the current song's load yet. Its successor
+	// should already be downloading, instead of waiting for that callback.
 	eventually(t, "the next song didn't come in ahead", func() bool { return src.count(src.fetched, "/b") == 1 })
+	settle(t, ch, p)
 	p.Next()
 	settle(t, ch, p)
 	if p.Current().ID != "b" || p.Err() != "" || !p.Playing() {
@@ -86,6 +88,40 @@ func TestNextSongComesInAhead(t *testing.T) {
 	}
 	if asked, fetched := src.count(src.asked, "b"), src.count(src.fetched, "/b"); asked != 1 || fetched != 1 {
 		t.Errorf("b asked for %d times, fetched %d", asked, fetched)
+	}
+}
+
+// Switching playback modes retargets the warm stream, skipping unavailable songs.
+func TestAheadUpdatesWithPlaybackMode(t *testing.T) {
+	p, ch, _, q := servedQueue(t, "a", "b", "c")
+	p.PlayQueue(q, 2)
+	settle(t, ch, p)
+	p.CycleRepeat()
+	if p.ahead == nil || p.ahead.id != "a" {
+		t.Fatal("repeat all did not warm the wrapped track")
+	}
+	p.CycleRepeat()
+	if p.ahead != nil {
+		t.Fatal("repeat one kept an unused download")
+	}
+	p.CycleRepeat()
+	p.PlayQueue(q, 0)
+	settle(t, ch, p)
+	// A known shuffled order makes leaving shuffle deterministic.
+	p.shuffle, p.order = true, []int{0, 2, 1}
+	p.getAhead(p.aheadQuality())
+	if p.ahead == nil || p.ahead.id != "c" {
+		t.Fatal("shuffled successor was not prefetched")
+	}
+	p.ToggleShuffle()
+	if p.ahead == nil || p.ahead.id != "b" {
+		t.Fatal("leaving shuffle retained the wrong successor")
+	}
+	q[1].Unavailable = true
+	p.PlayQueue(q, 0)
+	settle(t, ch, p)
+	if p.ahead == nil || p.ahead.id != "c" {
+		t.Fatal("preload stopped at an unavailable song")
 	}
 }
 

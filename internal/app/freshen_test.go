@@ -15,7 +15,7 @@ import (
 func TestReopenedPlaylistLoadsAnew(t *testing.T) {
 	a := editTestApp()
 	ch := posts(a)
-	a.plAt["10"] = time.Now().Add(-time.Minute)
+	a.plAt["10"] = time.Now().Add(-2 * listsFresh)
 	asked := make(chan string, 4)
 	fake(a).playlist = func(id string) (*music.Playlist, error) {
 		asked <- id
@@ -82,7 +82,7 @@ func TestRefocusLoadsPlaylistsAnew(t *testing.T) {
 	tt.Frame()
 	tt.SetWindowActive(false)
 
-	a.mineAt, a.plAt["10"] = time.Now().Add(-time.Minute), time.Now().Add(-time.Minute)
+	a.mineAt, a.plAt["10"] = time.Now().Add(-2*listsFresh), time.Now().Add(-2*listsFresh)
 	tt.SetWindowActive(true)
 	runPosts(ch)
 	tt.Frame()
@@ -99,7 +99,7 @@ func TestRefocusLoadsPlaylistsAnew(t *testing.T) {
 func TestFreshPlaylistKeepsChangeMadeMeanwhile(t *testing.T) {
 	a := editTestApp()
 	ch := posts(a)
-	a.plAt["10"] = time.Now().Add(-time.Minute)
+	a.plAt["10"] = time.Now().Add(-2 * listsFresh)
 	fake(a).playlist = func(id string) (*music.Playlist, error) {
 		return &music.Playlist{ID: id, Name: "通勤", Mine: true, Tracks: []music.Track{
 			song("1", "一张相片", "林宥嘉"),
@@ -127,7 +127,7 @@ func TestReopenedLikedLoadsAnew(t *testing.T) {
 	lib.likedList = []music.Track{song("1", "一张相片", "林宥嘉"), song("2", "宝船", "DOUDOU")}
 	lib.likedPaged.loaded = true
 	lib.liked = map[string]bool{"1": true, "2": true}
-	lib.likedAt = time.Now().Add(-time.Minute)
+	lib.likedAt = time.Now().Add(-2 * listsFresh)
 	fake(a).liked = func(offset int) (*music.Page, error) {
 		return &music.Page{Tracks: []music.Track{song("3", "新歌", "某人"), song("1", "一张相片", "林宥嘉")}}, nil
 	}

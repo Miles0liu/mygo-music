@@ -184,6 +184,12 @@ func TestLocatePlayingTrack(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
+	if _, ok := tt.Find(tr[120].Name); ok {
+		t.Fatal("locating jumped immediately instead of scrolling smoothly")
+	}
+	tt.Advance(2 * time.Second)
+	tt.Frame()
+	tt.Frame()
 	if _, ok := tt.Find(tr[120].Name); !ok {
 		t.Fatal("playing song is not visible")
 	}
@@ -201,11 +207,13 @@ func TestLocatePlayingTrack(t *testing.T) {
 	tt.Frame()
 	tt.Frame()
 	if _, ok := tt.Find("Locate Playing Song"); !ok {
-		t.Fatal("locate button did not return after scrolling the song behind the header")
+		box, _ := tt.Find(tr[120].Name)
+		t.Fatalf("locate button did not return after scrolling the song behind the header: row=%+v scroll=%+v", box, a.trackScroll)
 	}
 	if err := tt.Click("Locate Playing Song"); err != nil {
 		t.Fatal(err)
 	}
+	tt.Advance(2 * time.Second)
 	tt.Frame()
 	tt.Frame()
 	if _, ok := tt.Find("Locate Playing Song"); ok {

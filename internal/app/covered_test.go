@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -56,10 +57,14 @@ func TestCoveredPageKeepsItsPlace(t *testing.T) {
 	}
 }
 
-// shown returns the texts the window shows, each where it is.
+// shown tracks the page's song/card positions, independent of hover buttons
+// whose press and reveal animations can still be settling on return.
 func shown(tt *ui.Tester) string {
 	var s string
 	for _, text := range tt.Texts() {
+		if !strings.HasPrefix(text, "曲目") && !strings.HasPrefix(text, "歌单") {
+			continue
+		}
 		if r, ok := tt.Find(text); ok {
 			s += fmt.Sprintf("%s@%.0f,%.0f ", text, r.X, r.Y)
 		}
@@ -71,6 +76,7 @@ func shown(tt *ui.Tester) string {
 func firstShown(a *app) string {
 	b := *a
 	b.trackList, b.pageScroll = ui.ListState{}, ui.ScrollState{}
+	b.trackScroll = ui.ScrollState{}
 	tt := ui.NewTester(b.view, 1200, 800)
 	tt.Frame()
 	return shown(tt)

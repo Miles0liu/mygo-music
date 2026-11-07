@@ -160,11 +160,11 @@ func rollCount(c *ui.Context, st *rollState, n int, text string, fg ui.Color) {
 func count(n int) string { return i18n.Count(n) }
 
 // commentsPane lists the comments of tr, which load on as they scroll into
-// view, under a place to write one, if the source takes them.
+// view, above a fixed place to write one, if the source takes them.
 func (a *app) commentsPane(c *ui.Context, tr *music.Track) {
 	cs := a.commentsFor(tr)
 	if cs.lib.can("postComment") {
-		a.commentBox(c, cs)
+		defer a.commentBox(c, cs)
 	}
 	if len(cs.list) == 0 {
 		if cs.loading || !cs.loaded && cs.err == "" {
@@ -190,7 +190,7 @@ func (a *app) commentsPane(c *ui.Context, tr *music.Track) {
 		return
 	}
 	now := c.Now()
-	scroll := ui.Scroll(c.Key("comments")).Grow(1).TrackScroll(&cs.scroll).Padding(4, 8, 48, 0)
+	scroll := ui.Scroll(c.Key("comments")).Grow(1).MinHeight(0).TrackScroll(&cs.scroll).Padding(4, 8, 12, 0)
 	var end ui.Rect
 	scroll.Children(func() {
 		ui.Column(c).Gap(2).Children(func() {
@@ -226,9 +226,12 @@ func (a *app) commentsPane(c *ui.Context, tr *music.Track) {
 
 // commentBox is where the listener writes a comment.
 func (a *app) commentBox(c *ui.Context, cs *commentState) {
-	ui.Row(c.Key("comment-box")).Gap(8).AlignItems(ui.Center).Margin(0, 8, 8, 0).Children(func() {
-		in := ui.TextInput(c.Key("draft"), &cs.draft).Placeholder(T("Write a comment…")).Label(T("Write a comment…")).FontSize(13.5).Grow(1).Shrink(1).MinWidth(0)
-		send := pillButton(c.Key("send"), nil, T("Post"), white.Alpha(0.14), white)
+	ui.Row(c.Key("comment-box")).Gap(12).AlignItems(ui.Center).Shrink(0).Margin(12, 8, 8, 0).
+		Padding(10).Radius(16).Background(white.Alpha(0.08)).Border(1, white.Alpha(0.12)).Children(func() {
+		in := ui.TextInput(c.Key("draft"), &cs.draft).Placeholder(T("Write a comment…")).Label(T("Write a comment…")).
+			FontSize(15).Height(44).PaddingX(12).Radius(10).Background(ui.Transparent).TextColor(white).
+			Border(0, ui.Transparent).Grow(1).Shrink(1).MinWidth(0)
+		send := pillButton(c.Key("send"), nil, T("Post"), white.Alpha(0.20), white).Height(40).MinWidth(72)
 		if strings.TrimSpace(cs.draft) == "" || cs.posting {
 			send.Disabled(true).Opacity(0.5)
 		}

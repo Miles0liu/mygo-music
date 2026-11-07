@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -162,7 +163,7 @@ func (a *app) emptyHome(c *ui.Context) {
 func (a *app) playlistCard(c *ui.Context, pl *music.Playlist) {
 	lib := a.library
 	id := pl.ID
-	if a.coverCard(c, pl.Name, pl.ImageURL, playlistLine(pl), func() { a.loadPlaylist(lib, id, true) }) {
+	if a.coverCard(c, pl.Name, pl.ImageURL, playlistLine(pl), func() { a.loadPlaylist(lib, id, true) }, a.playlistContextMenu(lib, pl)) {
 		a.open(route{page: pagePlaylist, id: id})
 	}
 }
@@ -184,17 +185,20 @@ func playlistLine(pl *music.Playlist) string {
 // coverCard is a playlist's card, or a show's or a station's: its cover over
 // its name and a line under that. The button on the cover, if there's something
 // for it to call, calls play; it reports whether the rest was clicked.
-func (a *app) coverCard(c *ui.Context, name, cover, sub string, play func()) bool {
-	return a.coverCardWith(c, name, cover, iconNote, sub, play)
+func (a *app) coverCard(c *ui.Context, name, cover, sub string, play func(), menu ...func(*ui.Menu)) bool {
+	return a.coverCardWith(c, name, cover, iconNote, sub, play, menu...)
 }
 
 // coverCardWith is a card that shows icon if there's no cover to show, as a
 // source needn't have one.
-func (a *app) coverCardWith(c *ui.Context, name, cover string, icon *ui.SVG, sub string, play func()) bool {
+func (a *app) coverCardWith(c *ui.Context, name, cover string, icon *ui.SVG, sub string, play func(), menu ...func(*ui.Menu)) bool {
 	p := a.pal
 	// From the top: a grid stretches the cards of a row as tall as the
 	// tallest, whose name or line under it takes two lines.
 	card := ui.ButtonBase(c).Column().Gap(10).AlignItems(ui.Stretch).Justify(ui.Start).FocusRing(false).Label(name)
+	if len(menu) > 0 {
+		card.ContextMenu(menu[0])
+	}
 	hovered := card.Hovered()
 	card.Children(func() {
 		art := ui.Box(c).AspectRatio(1).Radius(10)
@@ -373,12 +377,16 @@ func (a *app) loadLikedPage(lib *library) {
 	}
 	lib.likedPaged.loading, lib.likedPaged.err = true, ""
 	offset := len(lib.likedList)
+	gen := lib.generation
 	if offset == 0 {
 		lib.likedAt = time.Now()
 	}
 	go func() {
 		page, err := answered(lib.src.Liked(offset))
 		a.post(func() {
+			if gen != lib.generation {
+				return
+			}
 			lib.likedPaged.loading = false
 			if err != nil {
 				lib.likedPaged.err = a.problem(lib, err, T("Couldn't load your liked songs"))
@@ -396,8 +404,8 @@ func (a *app) loadLikedPage(lib *library) {
 	}()
 }
 
-// freshenLiked asks for the first page of the liked songs anew, a while after
-// it was: it takes the place of what's listed, which shows until it comes.
+// freshenLiked refreshes the loaded extent of liked songs atomically, keeping
+// every loaded page visible while the replacement is being fetched.
 // Songs listed before and not now are asked about again as their hearts show.
 func (a *app) freshenLiked(lib *library) {
 	if lib.likedFresh || lib.likedPaged.loading || time.Since(lib.likedAt) <= listsFresh {
@@ -406,9 +414,25 @@ func (a *app) freshenLiked(lib *library) {
 	lib.likedFresh, lib.likedAt = true, time.Now()
 	was := lib.likedList
 	who := lib.listener()
+	gen := lib.generation
 	go func() {
 		page, err := answered(lib.src.Liked(0))
+		if err == nil {
+			page = &music.Page{Tracks: slices.Clone(page.Tracks), More: page.More && len(page.Tracks) > 0}
+			for page.More && len(page.Tracks) < len(was) {
+				var next *music.Page
+				next, err = answered(lib.src.Liked(len(page.Tracks)))
+				if err != nil {
+					break
+				}
+				page.Tracks = append(page.Tracks, next.Tracks...)
+				page.More = next.More && len(next.Tracks) > 0
+			}
+		}
 		a.post(func() {
+			if gen != lib.generation {
+				return
+			}
 			lib.likedFresh = false
 			// Liked or not in the app meanwhile, or more of it loaded, or
 			// forgotten: what's there is newer than what was asked for.
@@ -458,8 +482,20 @@ func (a *app) trackRows(c *ui.Context, tracks []music.Track, covers bool, header
 	// Rows out of view are not built, their marks with them: a list
 	// scrolled away from its start or end has content under the bars.
 	a.underTop, a.underBottom = true, true
+	a.advanceTrackLocate(c, tracks, bottom)
 	rows := len(tracks) + 1 + len(footer)
-	ui.List(c.Key(a.route), &a.trackList, rows, func(i int) {
+	ui.List(c.Key(a.route), &a.trackList, rows).Grow(1).TrackScroll(&a.trackScroll).
+		Padding(top+pageGap, pagePad-12, bottom+70, pagePad-12).ScrollbarInsets(top, 0, bottom, 0).
+		HandleInput(func(ev ui.InputEvent) bool {
+			if ev.Kind == ui.InputScroll || ev.Kind == ui.InputPointerDown {
+				a.trackLocate = ""
+			}
+			if ev.Kind == ui.InputScroll {
+				a.trackVisibilityFrame = true
+			}
+			return false
+		}).Rows(func(r ui.ListRow) {
+		i := r.Index
 		if i == 0 {
 			ui.Column(c).Children(func() {
 				a.startMark(c)
@@ -475,13 +511,10 @@ func (a *app) trackRows(c *ui.Context, tracks []music.Track, covers bool, header
 			return
 		}
 		a.trackRow(c, tracks, i-1, covers, pid, true)
-	}).Grow(1).Padding(top+pageGap, pagePad-12, bottom+70, pagePad-12).ScrollbarInsets(top, 0, bottom, 0).
-		HandleInput(func(ev ui.InputEvent) bool {
-			if ev.Kind == ui.InputScroll {
-				a.trackVisibilityFrame = true
-			}
-			return false
-		})
+	})
+	if a.trackLocate != "" {
+		c.AnimationFrame()
+	}
 	a.locatePlayingButton(c, tracks, bottom)
 }
 
@@ -509,6 +542,10 @@ func (a *app) trackRow(c *ui.Context, tracks []music.Track, i int, covers bool, 
 	if selecting && playing {
 		row.Bind(&a.trackPlayingRow)
 	}
+	if first, _ := a.trackList.Visible(); selecting && i+1 == max(first, 1) {
+		row.Bind(&a.trackReference)
+		a.trackReferenceIndex = i
+	}
 	hovered := row.Hovered()
 	bg := ui.Transparent
 	switch {
@@ -527,10 +564,15 @@ func (a *app) trackRow(c *ui.Context, tracks []music.Track, i int, covers bool, 
 	row.Children(func() {
 		ui.Box(c).Width(26).Center().Children(func() {
 			switch {
+			case hovered && !tr.Unavailable:
+				if iconButton(c.Key("row-play"), iconPlay, 13, p.text, T("Play")).Size(26, 32).Clicked() {
+					if selecting {
+						a.selectTrack(tracks, i, 0)
+					}
+					a.pl.PlayTrack(tracks, i)
+				}
 			case playing:
 				a.nowPlayingBars(c)
-			case hovered && !tr.Unavailable:
-				ui.Icon(c, iconPlay).Size(13, 13).TextColor(p.text)
 			default:
 				ui.Textf(c, "%d", i+1).FontSize(13).FontFeatures("tnum").TextColor(p.faint)
 			}

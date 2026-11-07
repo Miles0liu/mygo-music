@@ -292,8 +292,7 @@ func TestCommentsGoWithoutCapability(t *testing.T) {
 	}
 }
 
-// The menus of a playlist offer what the source can do of renaming and deleting,
-// and no menu at all without either.
+// Playlist menus retain playback while hiding edits the source cannot perform.
 func TestPlaylistMenuGoesWithoutCapability(t *testing.T) {
 	menu := func(t *testing.T, a *app, tt *ui.Tester) []string {
 		t.Helper()
@@ -323,8 +322,14 @@ func TestPlaylistMenuGoesWithoutCapability(t *testing.T) {
 	}
 	a.deleting.open = false
 	without(a, "deletePlaylist")
-	if items := menu(t, a, tt); items != nil {
-		t.Errorf("a menu of %q with nothing to do", items)
+	if items := menu(t, a, tt); slices.Contains(items, "Delete Playlist…") || slices.Contains(items, "Rename…") {
+		t.Errorf("unsupported playlist edits in %q", items)
+	}
+	if err := tt.RightClick("睡前"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Play"); err != nil {
+		t.Fatalf("read-only playlists lost playback: %v", err)
 	}
 
 	a.route = route{page: pagePlaylist, src: "fake", id: "10"}

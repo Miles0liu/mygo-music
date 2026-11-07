@@ -31,6 +31,7 @@ type artwork struct {
 	backdrop *ui.Bitmap
 	tint     ui.Color // the cover's most vivid color
 	failed   bool
+	retryAt  time.Time // failed images may be requested again after a short backoff
 	used     time.Time // when it was last asked for
 	size     int       // the bytes it keeps: its data, and the backdrop's pixels
 }
@@ -63,6 +64,8 @@ type artCache struct {
 	// last went back to the system, which tidy has it do once they stop.
 	decoded int
 	tidy    *time.Timer
+	warm    []string
+	warming map[string]bool
 }
 
 // artLimit is how many bytes of covers the cache keeps. A cover keeps its
@@ -116,8 +119,11 @@ func (c *artCache) get(url string, backdrop bool) *artwork {
 	}
 	now := c.now()
 	if a, ok := c.art[key]; ok {
-		a.used = now
-		return a
+		if !a.failed || now.Before(a.retryAt) {
+			a.used = now
+			return a
+		}
+		delete(c.art, key)
 	}
 	if a := c.gone[key].Value(); a != nil {
 		delete(c.gone, key)
@@ -137,13 +143,15 @@ func (c *artCache) get(url string, backdrop bool) *artwork {
 			blurred = blurImage(l.img)
 		}
 		c.post(func() {
+			defer c.pumpWarm()
+			delete(c.warming, key)
 			delete(c.busy, key)
 			c.letGo(url, l)
 			c.decoded += l.pixels
 			l.pixels = 0
 			c.tidyUp()
 			if l.err != nil {
-				c.add(key, &artwork{failed: true, used: c.now()})
+				c.add(key, &artwork{failed: true, used: c.now(), retryAt: c.now().Add(time.Minute)})
 				return
 			}
 			// A backdrop shares the bitmap of the cover it is of, which
@@ -160,6 +168,29 @@ func (c *artCache) get(url string, backdrop bool) *artwork {
 		})
 	}()
 	return nil
+}
+
+// prefetch replaces speculative work with the covers likely to show next.
+// Two loads at a time leave the remaining slots for artwork on screen.
+func (c *artCache) prefetch(urls []string) {
+	c.warm = slices.Clone(urls[:min(len(urls), 512)])
+	if c.warming == nil {
+		c.warming = map[string]bool{}
+	}
+	c.pumpWarm()
+}
+
+func (c *artCache) pumpWarm() {
+	for len(c.warming) < 2 && len(c.warm) > 0 {
+		key := c.warm[0]
+		c.warm = c.warm[1:]
+		if key == "" || c.busy[key] {
+			continue
+		}
+		if c.get(key, false) == nil && c.busy[key] {
+			c.warming[key] = true
+		}
+	}
 }
 
 // artLoad is a cover loading at a size, for the cover and its backdrop.

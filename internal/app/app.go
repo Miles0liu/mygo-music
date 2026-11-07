@@ -99,6 +99,13 @@ type app struct {
 	settingText map[string]*string // the settings of sources, as being typed
 
 	trackList            ui.ListState
+	trackScroll          ui.ScrollState
+	trackReference       ui.Handle
+	trackReferenceIndex  int
+	trackLocate          string
+	trackLocateTo        float32
+	playlistPlay         *playlistPlayRequest
+	wallWarm             wallWarmState
 	trackPlayingRow      ui.Handle
 	trackPlayingID       string
 	trackVisibilityFrame bool

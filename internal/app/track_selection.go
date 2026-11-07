@@ -1,8 +1,10 @@
 package app
 
 import (
+	"math"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 	"mygo-music/internal/music"
@@ -44,6 +46,7 @@ func (a *app) prepareTrackSelection(c *ui.Context, tracks []music.Track) {
 			by  int
 		}{{ui.KeyUp, -1}, {ui.KeyDown, 1}} {
 			a.trackList.OnShortcut(c, mods, direction.key, func() {
+				a.trackLocate = ""
 				if len(tracks) == 0 {
 					return
 				}
@@ -61,6 +64,7 @@ func (a *app) prepareTrackSelection(c *ui.Context, tracks []music.Track) {
 }
 
 func (a *app) selectTrack(tracks []music.Track, i int, mods ui.Modifiers) {
+	a.trackLocate = ""
 	key := trackIdentity(tracks[i])
 	additive := mods&(ui.Ctrl|ui.Cmd) != 0
 	if mods&ui.Shift != 0 {
@@ -181,13 +185,44 @@ func (a *app) locatePlayingButton(c *ui.Context, tracks []music.Track, bottom fl
 	}
 	p := a.pal
 	ui.Box(c.Key("locate-playing")).Absolute().Right(24).Bottom(bottom + 20).Children(func() {
-		if pillButton(c, iconRadio, T("Locate Playing Song"), p.accent.Alpha(0.76), ui.RGB(255, 255, 255)).
-			Border(1, ui.RGBA(255, 255, 255, 0.14)).Shadow(0, 4, 14, 0, p.text.Alpha(0.10)).Tooltip(T("Locate Playing Song")).Clicked() {
+		if iconButton(c, iconLocate, 20, p.text.Alpha(0.85), T("Locate Playing Song")).
+			Size(42, 42).Radius(21).Background(p.bg.Alpha(0.72)).
+			Border(1, p.text.Alpha(0.10)).Shadow(0, 3, 12, 0, p.text.Alpha(0.08)).Tooltip(T("Locate Playing Song")).Clicked() {
 			a.selectTrack(tracks, at, 0)
-			a.trackList.ScrollTo(at+1, ui.Center)
+			a.trackLocate, a.trackLocateTo = trackIdentity(tracks[at]), -1
+			a.advanceTrackLocate(c, tracks, bottom)
 			a.trackVisibilityFrame = true
 		}
 	})
+}
+
+// Virtual lists revise their estimated offsets as rows are measured. Anchor
+// the destination to an actual visible song so a tall playlist header cannot
+// make a long glide end hundreds of songs short of its target.
+func (a *app) advanceTrackLocate(c *ui.Context, tracks []music.Track, bottom float32) {
+	if a.trackLocate == "" {
+		return
+	}
+	at := slices.IndexFunc(tracks, func(tr music.Track) bool { return trackIdentity(tr) == a.trackLocate })
+	if at < 0 || !sameTrack(a.pl.Current(), &tracks[at]) {
+		a.trackLocate = ""
+		return
+	}
+	if !a.trackScroll.Scrolling() && a.playingTrackVisible(c, at+1) {
+		a.trackLocate = ""
+		return
+	}
+	row, viewport := a.trackReference.Bounds(c), a.trackList.Bounds(c)
+	if row.H == 0 || viewport.H == 0 {
+		return
+	}
+	top, _ := a.insets(c)
+	y := a.trackScroll.Y + float32(at-a.trackReferenceIndex)*54 + row.Y + row.H/2 - viewport.Y - (top+viewport.H-bottom)/2
+	y = max(0, min(y, a.trackScroll.MaxY))
+	if math.Abs(float64(y-a.trackLocateTo)) > 0.5 {
+		a.trackLocateTo = y
+		a.trackScroll.ScrollTo(0, y, ui.Animation{Spring: ui.SpringOptions{Duration: 420 * time.Millisecond}})
+	}
 }
 
 // Rows behind the header/player or built as virtual-list overscan are not

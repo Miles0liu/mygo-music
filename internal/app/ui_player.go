@@ -317,7 +317,7 @@ func (a *app) transport(c *ui.Context, color, dim, on ui.Color, size float32) {
 		if pl.Shuffle() {
 			shuffle = on
 		}
-		if iconButton(c.Key("shuffle"), iconShuffle, size*0.62, shuffle, T("Shuffle")).Clicked() {
+		if modeButton(c.Key("shuffle"), iconShuffle, size*0.62, shuffle, T("Shuffle"), pl.Shuffle()).Clicked() {
 			pl.ToggleShuffle()
 		}
 		if iconButton(c.Key("prev"), iconPrev, size*0.85, color, T("Previous")).Clicked() {
@@ -336,10 +336,25 @@ func (a *app) transport(c *ui.Context, color, dim, on ui.Color, size float32) {
 		case player.RepeatOne:
 			repeat, ricon = on, iconRepeat1
 		}
-		if iconButton(c.Key("repeat"), ricon, size*0.62, repeat, T("Repeat")).Clicked() {
+		if modeButton(c.Key("repeat"), ricon, size*0.62, repeat, T("Repeat"), pl.Repeat() != player.RepeatOff).Clicked() {
 			pl.CycleRepeat()
 		}
 	})
+}
+
+// Mode controls retain a filled outline and a dot while enabled, including
+// on artwork whose accent is close to the inactive glyph color.
+func modeButton(c *ui.Context, icon *ui.SVG, size float32, color ui.Color, label string, active bool) ui.Element {
+	b := iconButton(c, icon, size, color, label).AccessSelected(active)
+	if active {
+		b.Background(color.Alpha(0.20)).Border(1, color.Alpha(0.55))
+		b.Children(func() {
+			ui.Box(c.Key("active-dot")).Absolute().Left(0).Right(0).Bottom(2).Height(4).Center().Children(func() {
+				ui.Box(c).Size(3, 3).Radius(2).Background(color)
+			})
+		})
+	}
+	return b
 }
 
 // playerBar runs along the foot of the content: what plays, its controls

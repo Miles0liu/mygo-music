@@ -2,7 +2,7 @@ package player
 
 import "mygo-music/internal/music"
 
-// The next track's audio is asked for once the current one plays, and comes in
+// The next track's audio is asked for as the current one loads, and comes in
 // meanwhile, so that it starts at once when its turn comes: a source may take
 // seconds to give a stream, as one that works it out with programs does.
 
@@ -25,17 +25,26 @@ func (p *Player) upNext() (music.Track, bool) {
 	if p.at < 0 || p.at >= len(p.order) || p.repeat == RepeatOne {
 		return music.Track{}, false
 	}
-	at := p.at + 1
-	if at >= len(p.order) {
-		if p.repeat != RepeatAll || p.feed != nil {
-			return music.Track{}, false
+	for step := 1; step < len(p.order); step++ {
+		at := p.at + step
+		if at >= len(p.order) {
+			if p.repeat != RepeatAll || p.feed != nil {
+				return music.Track{}, false
+			}
+			at %= len(p.order)
 		}
-		at = 0
+		if t := p.queue[p.order[at]]; !t.Unavailable {
+			return t, true
+		}
 	}
-	if at == p.at {
-		return music.Track{}, false
+	return music.Track{}, false
+}
+
+func (p *Player) aheadQuality() string {
+	if p.Quality != nil {
+		return p.Quality()
 	}
-	return p.queue[p.order[at]], true
+	return music.Qualities[len(music.Qualities)/2]
 }
 
 // getAhead asks for the next track's audio at quality, unless it's kept

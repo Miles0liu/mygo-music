@@ -64,7 +64,7 @@ type Player struct {
 	track   *music.Track
 	out     *audio.Player
 	stream  stream
-	watch   *watched // stream, as out plays it
+	watch   *watched      // stream, as out plays it
 	info    *music.Stream // what the current track streams
 	fade    fader
 	gain    float64 // the current track's normalizing gain
@@ -278,6 +278,9 @@ func (p *Player) refill() {
 		}
 		p.feeding = false
 		p.appendTracks(more)
+		if !p.loading {
+			p.getAhead(p.aheadQuality())
+		}
 		switch {
 		case !p.awaiting:
 		case p.at+1 < len(p.order):
@@ -339,9 +342,13 @@ func (p *Player) ToggleShuffle() {
 		}
 		p.at = cur
 	}
+	p.getAhead(p.aheadQuality())
 }
 
-func (p *Player) CycleRepeat() { p.repeat = (p.repeat + 1) % 3 }
+func (p *Player) CycleRepeat() {
+	p.repeat = (p.repeat + 1) % 3
+	p.getAhead(p.aheadQuality())
+}
 
 // Current returns the track playing or loading, or nil.
 func (p *Player) Current() *music.Track { return p.track }
@@ -676,11 +683,9 @@ func (p *Player) loadSkipping(at, skipped, dir int, play bool, from time.Duratio
 		p.loadRemote(gen, src, at, skipped, dir, play, from)
 		return
 	}
-	quality := music.Qualities[len(music.Qualities)/2]
-	if p.Quality != nil {
-		quality = p.Quality()
-	}
+	quality := p.aheadQuality()
 	pre := p.takeAhead(t, quality)
+	p.getAhead(quality)
 	go func() {
 		info, s, err := p.open(src, t, quality, pre)
 		p.post(func() {

@@ -53,10 +53,11 @@ func probeCaps(src music.Source) map[string]bool {
 // so an answer that comes after the listener switched to another source lands
 // where it belongs, and shows when they come back.
 type library struct {
-	id      string
-	src     music.Source
-	caps    map[string]bool // what it can do
-	started bool            // what it lists was asked for
+	id         string
+	src        music.Source
+	caps       map[string]bool // what it can do
+	started    bool            // what it lists was asked for
+	generation uint64          // changes when account-scoped data is forgotten
 
 	account      *music.Account
 	accountBusy  bool // it's being asked who's signed in
@@ -117,6 +118,7 @@ func newLibrary(src music.Source) *library {
 
 // forget drops what was loaded of the source, whose answers may have changed.
 func (l *library) forget() {
+	l.generation++
 	l.playlists = map[string]*music.Playlist{}
 	l.loadingPl = map[string]bool{}
 	l.plAt = map[string]time.Time{}
@@ -129,6 +131,7 @@ func (l *library) forget() {
 	l.searches = map[route]*searchData{}
 	l.liked = nil
 	l.likedList, l.likedPaged, l.likedAt = nil, paged{}, time.Time{}
+	l.likedFresh = false
 	l.savedAlbums, l.savedAlbumsPaged = nil, paged{}
 	l.subscribed, l.subscribedOnce = nil, false
 	l.stations, l.stationsOnce = nil, false

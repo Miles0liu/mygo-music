@@ -23,6 +23,7 @@ func (a *app) view(c *ui.Context) {
 	c.SetMenuPresentation(ui.PopoverMenus)
 
 	a.shortcuts(c)
+	a.warmWall(c)
 
 	// Back to the front, after the listener may have changed their
 	// playlists elsewhere.
@@ -381,6 +382,7 @@ func (a *app) content(c *ui.Context) {
 	// list, as a page's tabs in its header, opens it as the list builds.
 	if a.scrolled != a.route {
 		a.trackList, a.pageScroll, a.scrolled = ui.ListState{}, ui.ScrollState{}, a.route
+		a.trackScroll, a.trackReference, a.trackLocate = ui.ScrollState{}, ui.Handle{}, ""
 	}
 	// Pages mark where their content is, as they scroll.
 	a.underTop, a.underBottom = false, false
@@ -494,14 +496,37 @@ func (a *app) freshenHome() {
 // loaded, are taken to be what the source has. They change elsewhere too, in
 // its own apps and on its website: opened again after it, or as the window
 // comes back to the front, they are asked for anew.
-const listsFresh = 30 * time.Second
+const listsFresh = 5 * time.Minute
+
+// A play request made while a playlist loads joins that load. A later request
+// or a song picked in the meantime supersedes it.
+type playlistPlayRequest struct {
+	lib        *library
+	id         string
+	current    *music.Track
+	generation uint64
+}
+
+func (a *app) playLoadedPlaylist(lib *library, id string, pl *music.Playlist) {
+	want := a.playlistPlay
+	if want == nil || want.lib != lib || want.id != id {
+		return
+	}
+	a.playlistPlay = nil
+	if pl != nil && want.generation == lib.generation && want.current == a.pl.Current() {
+		a.pl.PlayQueue(pl.Tracks, firstPlayable(pl.Tracks))
+	}
+}
 
 // loadPlaylist loads a playlist's page, and plays it once it has, if thenPlay.
 // Loaded a while ago, it shows as it was while it's asked for anew.
 func (a *app) loadPlaylist(lib *library, id string, thenPlay bool) {
+	if thenPlay {
+		a.playlistPlay = &playlistPlayRequest{lib: lib, id: id, current: a.pl.Current(), generation: lib.generation}
+	}
 	if pl := lib.playlists[id]; pl != nil {
 		if thenPlay {
-			a.pl.PlayQueue(pl.Tracks, firstPlayable(pl.Tracks))
+			a.playLoadedPlaylist(lib, id, pl)
 		}
 		if !lib.freshPl[id] && time.Since(lib.plAt[id]) > listsFresh {
 			a.freshenPlaylist(lib, id)
@@ -514,18 +539,21 @@ func (a *app) loadPlaylist(lib *library, id string, thenPlay bool) {
 	lib.loadingPl[id] = true
 	delete(lib.plErr, id)
 	at := time.Now()
+	gen := lib.generation
 	go func() {
 		pl, err := answered(lib.src.Playlist(id))
 		a.post(func() {
+			if gen != lib.generation {
+				return
+			}
 			delete(lib.loadingPl, id)
 			if err != nil {
+				a.playLoadedPlaylist(lib, id, nil)
 				lib.plErr[id] = a.problem(lib, err, T("Couldn't load this playlist"))
 				return
 			}
 			lib.playlists[id], lib.plAt[id] = pl, at
-			if thenPlay {
-				a.pl.PlayQueue(pl.Tracks, firstPlayable(pl.Tracks))
-			}
+			a.playLoadedPlaylist(lib, id, pl)
 		})
 	}()
 }
@@ -534,13 +562,25 @@ func (a *app) loadPlaylist(lib *library, id string, thenPlay bool) {
 // the answer takes its place. Failing, it stays as it was.
 func (a *app) freshenPlaylist(lib *library, id string) {
 	was := lib.playlists[id]
+	if was == nil || lib.freshPl[id] {
+		return
+	}
 	before := *was
 	lib.freshPl[id] = true
 	at := time.Now()
+	lib.plAt[id] = at
+	gen := lib.generation
 	go func() {
 		pl, err := answered(lib.src.Playlist(id))
 		a.post(func() {
+			if gen != lib.generation {
+				return
+			}
 			delete(lib.freshPl, id)
+			if lib.plAt[id].IsZero() {
+				a.freshenPlaylist(lib, id)
+				return
+			}
 			// Changed in the app meanwhile, its songs or name, or forgotten:
 			// what's there is newer than what was asked for.
 			if err != nil || lib.playlists[id] != was || !sameList(was.Tracks, before.Tracks) ||

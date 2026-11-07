@@ -457,19 +457,31 @@ func (a *app) myPlaylists(c *ui.Context, title string, lists []music.Playlist, m
 			a.cover(c, pl.ImageURL, 80, 22, 5)
 			ui.Text(c, pl.Name).FontSize(13).SingleLine().Shrink(1).MinWidth(0)
 		})
-		switch {
-		case mine && pl.Fixed:
-		case mine && (a.can("renamePlaylist") || a.can("deletePlaylist")):
-			b.ContextMenu(func(m *ui.Menu) { a.playlistMenu(m, pl) })
-		case !mine && a.can("savePlaylist"):
-			b.ContextMenu(func(m *ui.Menu) {
-				if m.Item(T("Remove from Saved")).Chosen() {
-					a.toggleSaved(*pl)
-				}
-			})
-		}
+		b.ContextMenu(a.playlistContextMenu(a.library, pl))
 		if b.Clicked() {
 			a.open(route{page: pagePlaylist, id: pl.ID})
+		}
+	}
+}
+
+// Every playlist, including a source's fixed liked playlist, can be played
+// from its sidebar entry or cover without navigating away from the page.
+func (a *app) playlistContextMenu(lib *library, pl *music.Playlist) func(*ui.Menu) {
+	return func(m *ui.Menu) {
+		if m.Item(T("Play")).Disabled(!lib.can("playlist")).Chosen() {
+			a.loadPlaylist(lib, pl.ID, true)
+		}
+		if lib != a.library {
+			return
+		}
+		if own := a.editable(pl.ID); own != nil && (lib.can("renamePlaylist") || lib.can("deletePlaylist")) {
+			m.Separator()
+			a.playlistMenu(m, own)
+		} else if a.savable(pl) && a.isSaved(pl) {
+			m.Separator()
+			if m.Item(T("Remove from Saved")).Chosen() {
+				a.toggleSaved(*pl)
+			}
 		}
 	}
 }

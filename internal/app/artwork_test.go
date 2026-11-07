@@ -2,6 +2,7 @@ package app
 
 import (
 	"bytes"
+	"fmt"
 	"image"
 	"image/color"
 	"image/jpeg"
@@ -14,6 +15,9 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/egoist/mygo/ui"
+	"mygo-music/internal/music"
 )
 
 // An animated WebP cover, as some playlists have, shows its first frame,
@@ -32,6 +36,52 @@ func TestAnimatedWebPCover(t *testing.T) {
 	}
 	if w, h := bmp.Size(); w != 24 || h != 24 {
 		t.Errorf("bitmap is %d×%d, want 24×24", w, h)
+	}
+}
+
+// Likely wall covers load before the wall opens, with two speculative jobs,
+// and opening it reuses the ready bitmaps without another network request.
+func TestWallCoverPrefetch(t *testing.T) {
+	var data bytes.Buffer
+	if err := jpeg.Encode(&data, image.NewRGBA(image.Rect(0, 0, 20, 20)), nil); err != nil {
+		t.Fatal(err)
+	}
+	var fetched atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fetched.Add(1)
+		w.Write(data.Bytes())
+	}))
+	defer srv.Close()
+	a := newTestApp()
+	ch := make(chan func(), 64)
+	a.art = newArtCache(func(fn func()) { ch <- fn })
+	q := make([]music.Track, 2000)
+	for i := range q {
+		q[i] = music.Track{ID: fmt.Sprint(i), Album: music.Album{ImageURL: fmt.Sprintf("%s/%d.jpg", srv.URL, i%12)}}
+	}
+	a.pl.Cue(q)
+	tt := ui.NewTester(a.view, 1200, 800)
+	tt.Frame()
+	if a.nowPlaying || len(a.art.warming) > 2 || len(a.art.warm) == 0 {
+		t.Fatal("wall was not warmed in the background")
+	}
+	for len(a.art.warming) > 0 || len(a.art.warm) > 0 {
+		if len(a.art.warming) > 2 {
+			t.Fatal("speculative work exceeded its budget")
+		}
+		runPost(t, ch)
+	}
+	before := fetched.Load()
+	if before == 0 || before > 12 {
+		t.Fatalf("duplicate cover downloads: %d", before)
+	}
+	for _, tr := range q[:12] {
+		if art := a.art.get(sized(tr.Album.ImageURL, 240), false); art == nil || art.failed {
+			t.Fatal("wall cover not ready")
+		}
+	}
+	if fetched.Load() != before || len(a.art.busy) != 0 {
+		t.Fatal("showing warmed covers started new downloads")
 	}
 }
 
