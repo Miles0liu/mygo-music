@@ -128,6 +128,7 @@ func (a *app) searchPage(c *ui.Context) {
 			a.trackSkeleton(c, a.pageShimmer(c), true, header)
 			return
 		}
+		a.bar = pageBar{title: "\u201c" + r.query + "\u201d", tracks: d.res.Tracks, past: a.bar.past}
 		a.trackRows(c, d.res.Tracks, true, header, func(c *ui.Context) {
 			a.pageFoot(c, &d.page, more)
 			a.searchEmpty(c, d)

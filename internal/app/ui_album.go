@@ -57,6 +57,7 @@ func (a *app) albumPage(c *ui.Context) {
 		a.trackSkeleton(c, s, false, func(c *ui.Context) { a.playlistHeaderSkeleton(c, s) })
 		return
 	}
+	a.bar = pageBar{title: d.album.Album.Name, cover: d.album.Album.ImageURL, tracks: d.album.Tracks, past: a.bar.past}
 	a.trackRows(c, d.album.Tracks, false, func(c *ui.Context) { a.albumHeader(c, d) })
 }
 
@@ -83,6 +84,9 @@ func (a *app) albumHeader(c *ui.Context, d *albumData) {
 					}
 				}
 				meta := []string{i18n.Songs(len(tracks))}
+				if total := totalLength(tracks); total != "" {
+					meta = append(meta, total)
+				}
 				if al.Released != "" {
 					meta = append([]string{al.Released}, meta...)
 				}

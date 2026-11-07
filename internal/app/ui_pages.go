@@ -274,6 +274,7 @@ func (a *app) playlistPage(c *ui.Context) {
 		a.trackSkeleton(c, s, true, func(c *ui.Context) { a.playlistHeaderSkeleton(c, s) })
 		return
 	}
+	a.bar = pageBar{title: pl.Name, cover: pl.ImageURL, tracks: pl.Tracks, past: a.bar.past}
 	a.trackRows(c, pl.Tracks, true, func(c *ui.Context) { a.playlistHeader(c, pl) })
 }
 
@@ -291,6 +292,9 @@ func (a *app) playlistHeader(c *ui.Context, pl *music.Playlist) {
 				meta = append(meta, pl.Owner)
 			}
 			meta = append(meta, i18n.Songs(len(pl.Tracks)))
+			if total := totalLength(pl.Tracks); total != "" {
+				meta = append(meta, total)
+			}
 			ui.Text(c, strings.Join(meta, " · ")).FontSize(13).TextColor(p.muted)
 			if d := strings.TrimSpace(pl.Description); d != "" {
 				ui.Text(c, strings.ReplaceAll(d, "\n", " ")).FontSize(12.5).TextColor(p.muted).MaxLines(2).LineHeight(1.45).Margin(2, 0, 0, 0)
@@ -346,7 +350,11 @@ func (a *app) likedPage(c *ui.Context) {
 				ui.Text(c, T("Playlist")).FontSize(12).FontWeight(600).TextColor(p.accent)
 				ui.Text(c, T("Liked Songs")).FontSize(30).FontWeight(800).LetterSpacing(-0.6)
 				if lib.likedPaged.loaded {
-					ui.Text(c, i18n.Songs(len(lib.likedList))).FontSize(13).TextColor(p.muted)
+					line := i18n.Songs(len(lib.likedList))
+					if total := totalLength(lib.likedList); total != "" && !lib.likedPaged.more {
+						line += " · " + total
+					}
+					ui.Text(c, line).FontSize(13).TextColor(p.muted)
 				}
 				if len(lib.likedList) > 0 {
 					ui.Row(c).Gap(10).Margin(10, 0, 0, 0).Children(func() { a.playButtons(c, lib.likedList) })
@@ -362,6 +370,7 @@ func (a *app) likedPage(c *ui.Context) {
 		a.trackSkeleton(c, a.pageShimmer(c), true, header)
 		return
 	}
+	a.bar = pageBar{title: T("Liked Songs"), tracks: lib.likedList, past: a.bar.past}
 	a.trackRows(c, lib.likedList, true, header, func(c *ui.Context) {
 		a.pageFoot(c, &lib.likedPaged, func() { a.loadLikedPage(lib) })
 		if len(lib.likedList) == 0 {
@@ -466,6 +475,9 @@ func (a *app) trackRows(c *ui.Context, tracks []music.Track, covers bool, header
 	if a.route.page == pagePlaylist {
 		pid = a.route.id
 	}
+	// As the listener sorted them, by a column's head.
+	tracks = a.sortedTracks(tracks)
+	a.collectionTint(c)
 	a.prepareTrackSelection(c, tracks)
 	playingID := ""
 	if tr := a.pl.Current(); tr != nil {
@@ -484,6 +496,8 @@ func (a *app) trackRows(c *ui.Context, tracks []music.Track, covers bool, header
 	a.underTop, a.underBottom = true, true
 	a.advanceTrackLocate(c, tracks, bottom)
 	rows := len(tracks) + 1 + len(footer)
+	// The header scrolled under the bar while it isn't built.
+	headerBuilt := false
 	ui.List(c.Key(a.route), &a.trackList, rows).Grow(1).TrackScroll(&a.trackScroll).
 		Padding(top+pageGap, pagePad-12, bottom+70, pagePad-12).ScrollbarInsets(top, 0, bottom, 0).
 		HandleInput(func(ev ui.InputEvent) bool {
@@ -497,9 +511,16 @@ func (a *app) trackRows(c *ui.Context, tracks []music.Track, covers bool, header
 		}).Rows(func(r ui.ListRow) {
 		i := r.Index
 		if i == 0 {
+			headerBuilt = true
 			ui.Column(c).Children(func() {
 				a.startMark(c)
 				header(c)
+				if len(tracks) > 0 {
+					a.trackColumns(c, covers)
+				}
+				if b := ui.Box(c.Key("header-end")).Height(0).Bounds(); b.W > 0 {
+					a.bar.past = b.Y < top
+				}
 			})
 			return
 		}
@@ -512,10 +533,14 @@ func (a *app) trackRows(c *ui.Context, tracks []music.Track, covers bool, header
 		}
 		a.trackRow(c, tracks, i-1, covers, pid, true)
 	})
+	if !headerBuilt {
+		a.bar.past = true
+	}
 	if a.trackLocate != "" {
 		c.AnimationFrame()
 	}
 	a.locatePlayingButton(c, tracks, bottom)
+	a.selectionBar(c, tracks, bottom, pid)
 }
 
 // sameTrack reports whether two tracks are one: IDs are their source's.
@@ -528,9 +553,7 @@ func sameTrack(x, y *music.Track) bool {
 func (a *app) trackRow(c *ui.Context, tracks []music.Track, i int, covers bool, pid string, selectable ...bool) {
 	p := a.pal
 	tr := &tracks[i]
-	w, _ := c.Size()
-	// An album's page has no column of the album its songs are on.
-	wide := w-sidebarWidth > 820 && a.route.page != pageAlbum
+	wide := a.trackWide(c)
 	playing := sameTrack(a.pl.Current(), tr)
 	selecting := len(selectable) > 0 && selectable[0]
 	menu := a.songItems(tr, pid)
@@ -602,6 +625,12 @@ func (a *app) trackRow(c *ui.Context, tracks []music.Track, i int, covers bool, 
 		ui.Box(c).Size(32, 32).Center().Children(func() {
 			if a.isLiked(tr) || hovered {
 				a.likeButton(c.Key("like"), tr, 15, p.muted)
+			}
+		})
+		// What can be done with it, without a right click, under the pointer.
+		ui.Box(c).Size(32, 32).Center().Children(func() {
+			if hovered {
+				iconButton(c.Key("more"), iconMore, 15, p.muted, T("More")).Size(30, 30).Menu(menu)
 			}
 		})
 		ui.Text(c, clock(tr.Length())).FontSize(12.5).FontFeatures("tnum").TextColor(p.faint).Width(44).TextAlign(ui.End)

@@ -115,6 +115,11 @@ type app struct {
 	trackCursor          int
 	trackSelectionRoute  route
 	trackSelectionReady  bool
+	playingList          playingFrom // which playlist the queue is, kept between frames
+	shortcutsOpen        bool        // the window of keyboard shortcuts shows
+	trackSort            trackSort   // how the listener sorted the page's songs
+	trackSorted          sortedList  // the page's songs as sorted, kept between frames
+	bar                  pageBar     // what the bar over a page shows once its header scrolls away
 	shell                desktopShell
 	// Where the page and the sidebar are scrolled, kept while Now Playing
 	// covers them, unbuilt.

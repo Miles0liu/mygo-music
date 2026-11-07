@@ -119,6 +119,12 @@ func (a *app) selectedSongItems(tracks []music.Track, i int, pid string) func(*u
 		if m.Item(T("Play Selected")).Disabled(len(playable) == 0).Chosen() {
 			a.pl.PlayQueue(playable, 0)
 		}
+		if m.Item(T("Play Next")).Disabled(len(playable) == 0).Chosen() {
+			a.queueNext(playable, true)
+		}
+		if m.Item(T("Add to Queue")).Disabled(len(playable) == 0).Chosen() {
+			a.queueNext(playable, false)
+		}
 		m.Separator()
 		if m.Item(T("Copy Titles and Artists")).Chosen() {
 			lines := make([]string, len(selected))

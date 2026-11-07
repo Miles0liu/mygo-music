@@ -175,6 +175,7 @@ func (a *app) artistPage(c *ui.Context) {
 		})
 		return
 	}
+	a.bar = pageBar{title: d.page.Artist.Name, cover: d.page.Artist.ImageURL, tracks: d.page.Tracks, past: a.bar.past}
 	a.trackRows(c, d.page.Tracks, true, header)
 }
 

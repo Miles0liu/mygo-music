@@ -50,6 +50,9 @@ type settings struct {
 	// closes it back into it: an experiment the listener turns on. Off, it
 	// slides up from the bottom of the window.
 	GrowFromCover bool `json:"growFromCover"`
+	// Accent is the color of the app's buttons and marks (accentChoices):
+	// empty for the red it comes in, or "cover" to follow the cover playing.
+	Accent string `json:"accent,omitempty"`
 	// CoverStyle chooses the interactive cover or a rotating vinyl record.
 	CoverStyle string `json:"coverStyle,omitempty"`
 	// Smoke makes the progress bars comets trailing smoke as music plays,

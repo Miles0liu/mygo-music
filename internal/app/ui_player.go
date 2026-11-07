@@ -69,6 +69,12 @@ func (a *app) scrubber(c *ui.Context, st *scrubState, track, fill ui.Color, heig
 		knob = 1
 	}
 	knob = s.AnimateTo("knob", knob, ui.Snappy)
+	// Where the pointer rests, the time it would seek to shows over the bar.
+	var hoverX float32
+	hovering := false
+	if s.Hovered() && !pressed && dur > 0 {
+		hoverX, _, hovering = s.PointerPosition()
+	}
 	// The smoke settles away as the music pauses, and while dragging.
 	smoking := float32(0)
 	if smoke.A > 0 && a.settings.Smoke && pl.Playing() && !pl.Loading() && !st.active {
@@ -107,6 +113,9 @@ func (a *app) scrubber(c *ui.Context, st *scrubState, track, fill ui.Color, heig
 			p.Fill(ui.Rect{X: head - core/2, Y: cy - core/2, W: core, H: core}, white.Mix(smoke, 0.15).Alpha(smoking), core/2)
 		} else {
 			p.Fill(played, fill, thick/2)
+		}
+		if hovering {
+			drawSeekTip(p, r, hoverX, dur)
 		}
 		if knob > 0.01 {
 			k := 12 * knob
@@ -326,7 +335,11 @@ func (a *app) transport(c *ui.Context, color, dim, on ui.Color, size float32) {
 		if playButton(c.Key("play"), pl.Playing(), size*1.25, color).Clicked() {
 			pl.TogglePlay()
 		}
-		if iconButton(c.Key("next"), iconNext, size*0.85, color, T("Next")).Clicked() {
+		next := iconButton(c.Key("next"), iconNext, size*0.85, color, T("Next"))
+		if up := a.upNext(); up != "" {
+			next.Tooltip(Tf("Next: %s", up))
+		}
+		if next.Clicked() {
 			pl.Next()
 		}
 		repeat, ricon := dim, iconRepeat
@@ -450,13 +463,28 @@ func (a *app) playerBar(c *ui.Context) {
 			if tr != nil && tr.ShowID != "" {
 				label = T("About This Episode")
 			}
-			if iconButton(c.Key("lyrics"), iconLyrics, 16, lyr, label).Clicked() && tr != nil {
+			if iconButton(c.Key("lyrics"), iconLyrics, 16, lyr, label).Tooltip(label).Clicked() && tr != nil {
 				a.nowPlaying, a.npPane = true, a.lyricsPaneChosen()
 			}
-			if iconButton(c.Key("queue"), iconQueue, 16, p.muted, T("Queue")).Clicked() && tr != nil {
+			if iconButton(c.Key("queue"), iconQueue, 16, p.muted, T("Queue")).Tooltip(T("Queue")).Clicked() && tr != nil {
 				a.nowPlaying, a.npPane = true, paneQueue
 			}
 			a.volumeButton(c, p.text.Alpha(0.75))
 		})
 	})
+}
+
+// drawSeekTip shows over the bar r the time of a track dur seconds long at x,
+// where the pointer is along it: what a click there seeks to.
+func drawSeekTip(p *ui.Painter, r ui.Rect, x float32, dur float64) {
+	frac := min(1, max(0, x/max(r.W, 1)))
+	label := clock(secs(dur * float64(frac)))
+	tw, th := p.MeasureText(0, ui.Span{Text: label, Size: 11, Weight: 600})
+	w, h := tw+14, th+6
+	cx := min(max(r.X+x, r.X+w/2), r.X+r.W-w/2)
+	box := ui.Rect{X: cx - w/2, Y: r.Y - h - 4, W: w, H: h}
+	p.Shadow(box, h/2, 0, 2, 6, 0, ui.RGBA(0, 0, 0, 0.25))
+	p.Fill(box, ui.RGBA(20, 20, 24, 0.9), h/2)
+	p.RichText(box.X+7, box.Y+3, 0, ui.Span{Text: label, Size: 11, Weight: 600, Color: ui.RGB(255, 255, 255)})
+	p.Fill(ui.Rect{X: r.X + x - 0.75, Y: r.Y + r.H/2 - 5, W: 1.5, H: 10}, ui.RGBA(255, 255, 255, 0.55), 1)
 }

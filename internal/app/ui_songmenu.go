@@ -29,6 +29,12 @@ func (a *app) songItems(tr *music.Track, pid string) func(m *ui.Menu) {
 		if m.Item(T("Play")).Disabled(tr.Unavailable).Chosen() {
 			a.pl.PlayTrack([]music.Track{*tr}, 0)
 		}
+		if m.Item(T("Play Next")).Disabled(tr.Unavailable).Chosen() {
+			a.queueNext([]music.Track{*tr}, true)
+		}
+		if m.Item(T("Add to Queue")).Disabled(tr.Unavailable).Chosen() {
+			a.queueNext([]music.Track{*tr}, false)
+		}
 		m.Separator()
 		if m.Item(T("Copy Title")).Chosen() {
 			copyText(tr.Name)
@@ -68,5 +74,36 @@ func (a *app) songItems(tr *music.Track, pid string) func(m *ui.Menu) {
 			a.openPage(route{page: pageAlbum, src: lib.id, id: tr.Album.ID})
 		}
 		a.playlistItems(m, tr, pid)
+	}
+}
+
+// queueNext puts tracks after the song playing, or at the end of the queue,
+// and says so: the queue is out of sight.
+func (a *app) queueNext(tracks []music.Track, next bool) {
+	playable := make([]music.Track, 0, len(tracks))
+	for _, tr := range tracks {
+		if !tr.Unavailable {
+			playable = append(playable, tr)
+		}
+	}
+	if len(playable) == 0 {
+		return
+	}
+	idle := a.pl.Current() == nil
+	if next {
+		a.pl.PlayNext(playable)
+	} else {
+		a.pl.AddToQueue(playable)
+	}
+	switch {
+	case idle:
+	case next && len(playable) == 1:
+		a.toast = Tf("%s will play next", playable[0].Name)
+	case next:
+		a.toast = Tf("%d songs will play next", len(playable))
+	case len(playable) == 1:
+		a.toast = Tf("Added %s to the queue", playable[0].Name)
+	default:
+		a.toast = Tf("Added %d songs to the queue", len(playable))
 	}
 }

@@ -11,6 +11,9 @@ import (
 	"mygo-music/internal/music"
 )
 
+// commentsWidth is how wide comments grow, at most.
+const commentsWidth = 760
+
 // commentState is the comments of the song or episode Now Playing shows,
 // loaded a page at a time as they scroll, for a source that has them.
 type commentState struct {
@@ -193,7 +196,9 @@ func (a *app) commentsPane(c *ui.Context, tr *music.Track) {
 	scroll := ui.Scroll(c.Key("comments")).Grow(1).MinHeight(0).TrackScroll(&cs.scroll).Padding(4, 8, 12, 0)
 	var end ui.Rect
 	scroll.Children(func() {
-		ui.Column(c).Gap(2).Children(func() {
+		// As wide as reads well, however wide the pane: a like button far
+		// from what it likes is hard to tie to it.
+		ui.Column(c).Gap(2).MaxWidth(commentsWidth).Children(func() {
 			for i := range cs.list {
 				a.commentRow(c.Key(cs.list[i].ID), &cs.list[i], now)
 			}
@@ -226,7 +231,7 @@ func (a *app) commentsPane(c *ui.Context, tr *music.Track) {
 
 // commentBox is where the listener writes a comment.
 func (a *app) commentBox(c *ui.Context, cs *commentState) {
-	ui.Row(c.Key("comment-box")).Gap(12).AlignItems(ui.Center).Shrink(0).Margin(12, 8, 8, 0).
+	ui.Row(c.Key("comment-box")).Gap(12).AlignItems(ui.Center).Shrink(0).Margin(12, 8, 8, 0).MaxWidth(commentsWidth).
 		Padding(10).Radius(16).Background(white.Alpha(0.08)).Border(1, white.Alpha(0.12)).Children(func() {
 		in := ui.TextInput(c.Key("draft"), &cs.draft).Placeholder(T("Write a comment…")).Label(T("Write a comment…")).
 			FontSize(15).Height(44).PaddingX(12).Radius(10).Background(ui.Transparent).TextColor(white).

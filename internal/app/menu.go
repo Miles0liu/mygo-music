@@ -37,6 +37,7 @@ func (a *app) setMenu() {
 		)
 	}
 	appMenu = append(appMenu, &mygo.MenuItem{Role: mygo.RoleQuit, Label: Tf("Quit %s", name)})
+	volUp, volDown := volumeAccelerators()
 	mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
 		{Label: name, Submenu: appMenu},
 		{Label: T("File"), Submenu: []*mygo.MenuItem{
@@ -60,6 +61,9 @@ func (a *app) setMenu() {
 			{Label: T("Next"), Accelerator: "CmdOrCtrl+Right", Click: run(func() { a.pl.Next() })},
 			{Label: T("Previous"), Accelerator: "CmdOrCtrl+Left", Click: run(func() { a.pl.Prev() })},
 			mygo.Separator(),
+			{Label: T("Volume Up"), Accelerator: volUp, Click: run(func() { a.nudgeVolume(0.1) })},
+			{Label: T("Volume Down"), Accelerator: volDown, Click: run(func() { a.nudgeVolume(-0.1) })},
+			mygo.Separator(),
 			{Label: T("Like/Unlike"), Accelerator: "CmdOrCtrl+D", Click: run(a.likeCurrent)},
 			mygo.Separator(),
 			{Label: T("Shuffle"), Click: run(func() { a.pl.ToggleShuffle() })},
@@ -77,6 +81,12 @@ func (a *app) setMenu() {
 			mygo.Separator(),
 			{Label: name, Accelerator: "CmdOrCtrl+0", Click: run(a.showMain)},
 			{Role: mygo.RoleFront, Label: T("Bring All to Front")},
+		}},
+		{Label: T("Help"), Submenu: []*mygo.MenuItem{
+			{Label: T("Keyboard Shortcuts"), Accelerator: "CmdOrCtrl+/", Click: run(func() {
+				a.showMain()
+				a.shortcutsOpen = true
+			})},
 		}},
 	}))
 }

@@ -147,7 +147,7 @@ func settingsMatch(query string, texts ...string) bool {
 func (a *app) settingsView(c *ui.Context) {
 	t := *c.Theme()
 	applyTypography(&t)
-	p := paletteFor(&t)
+	p := a.withAccent(paletteFor(&t))
 	useAccent(&t, p)
 	c.SetTheme(&t)
 	c.Root().Background(p.bg)
@@ -352,6 +352,20 @@ func (a *app) settingsSections(c *ui.Context, p palette) []settingsSection {
 			}
 			if segmented(c.Key("appearance"), &i, T("System"), T("Light"), T("Dark")) {
 				s.Appearance = modes[i]
+				a.changed()
+			}
+		})
+		row(T("Accent Color"), T("The color of buttons, the song playing and what is chosen"), func() {
+			labels := make([]string, len(accentChoices))
+			at := 0
+			for i, ch := range accentChoices {
+				labels[i] = ch.label
+				if ch.id == s.Accent {
+					at = i
+				}
+			}
+			if i, ok := choice(c, "accent", T("Accent Color"), labels, at); ok {
+				s.Accent = accentChoices[i].id
 				a.changed()
 			}
 		})

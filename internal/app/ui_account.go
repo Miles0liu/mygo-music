@@ -443,10 +443,11 @@ func (a *app) myPlaylists(c *ui.Context, title string, lists []music.Playlist, m
 	if *collapsed {
 		return
 	}
+	playingID := a.playingPlaylist()
 	for i := range lists {
 		pl := &lists[i]
 		selected := a.route.page == pagePlaylist && a.route.id == pl.ID && !a.nowPlaying
-		b := ui.ButtonBase(c.Key(pl.ID)).Height(34).PaddingX(8).Gap(10).Radius(8).AlignItems(ui.Center).Justify(ui.Start).FocusRing(false).Label(pl.Name)
+		b := ui.ButtonBase(c.Key(pl.ID)).Height(36).PaddingX(7).Gap(10).Radius(8).AlignItems(ui.Center).Justify(ui.Start).FocusRing(false).Label(pl.Name)
 		switch {
 		case selected:
 			b.Background(p.press)
@@ -454,8 +455,16 @@ func (a *app) myPlaylists(c *ui.Context, title string, lists []music.Playlist, m
 			b.Background(p.hover)
 		}
 		b.Children(func() {
-			a.cover(c, pl.ImageURL, 80, 22, 5)
-			ui.Text(c, pl.Name).FontSize(13).SingleLine().Shrink(1).MinWidth(0)
+			a.cover(c, pl.ImageURL, 80, 26, 6)
+			name := ui.Text(c, pl.Name).FontSize(13).SingleLine().Shrink(1).MinWidth(0).Grow(1)
+			if pl.ID == playingID {
+				name.TextColor(p.accent)
+				icon := iconVolume
+				if !a.pl.Playing() {
+					icon = iconVolumeLow
+				}
+				ui.Icon(c, icon).Size(13, 13).TextColor(p.accent).Shrink(0)
+			}
 		})
 		b.ContextMenu(a.playlistContextMenu(a.library, pl))
 		if b.Clicked() {

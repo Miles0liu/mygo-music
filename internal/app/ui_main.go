@@ -15,7 +15,7 @@ const sidebarWidth = 232
 func (a *app) view(c *ui.Context) {
 	t := *c.Theme()
 	applyTypography(&t)
-	a.pal = paletteFor(&t)
+	a.pal = a.withAccent(paletteFor(&t))
 	p := a.pal
 	useAccent(&t, p)
 	t.Selection = p.accent.Alpha(0.3)
@@ -78,6 +78,7 @@ func (a *app) view(c *ui.Context) {
 	a.signInDialog(c, a.pal, false)
 	a.playlistNameDialog(c)
 	a.deletePlaylistDialog(c)
+	a.shortcutsDialog(c)
 	if a.toast != "" {
 		c.Toast(a.toast)
 		a.toast = ""
@@ -361,6 +362,7 @@ func (a *app) pageTop(c *ui.Context) {
 		Material(glass.ScrollEdge{Hard: true, Background: a.pal.bg})
 	// The pointer over it brings the edge up too, as AppKit's does.
 	edge.Opacity(edgeShown(edge, a.underTop || edge.Hovered()))
+	a.compactBar(c)
 	if len(a.history) > 0 || len(a.forward) > 0 {
 		ui.Row(c).Absolute().Top(0).Left(20).Height(topBar(c)).AlignItems(ui.Center).Children(func() {
 			back := iconButton(c.Key("back"), iconBack, 18, a.pal.muted, T("Back")).Disabled(len(a.history) == 0)
@@ -383,9 +385,12 @@ func (a *app) content(c *ui.Context) {
 	if a.scrolled != a.route {
 		a.trackList, a.pageScroll, a.scrolled = ui.ListState{}, ui.ScrollState{}, a.route
 		a.trackScroll, a.trackReference, a.trackLocate = ui.ScrollState{}, ui.Handle{}, ""
+		a.bar.past = false
 	}
-	// Pages mark where their content is, as they scroll.
+	// Pages mark where their content is, as they scroll; a page of songs
+	// says what the bar over it shows once its header scrolls away.
 	a.underTop, a.underBottom = false, false
+	a.bar = pageBar{past: a.bar.past}
 	switch a.route.page {
 	case pageHome:
 		a.homePage(c)
@@ -468,6 +473,11 @@ func (a *app) loadHome(lib *library) {
 			home = nil
 			if lib.can("recent") {
 				recent, recentErr = lib.src.Recent()
+			}
+		} else if lib.can("recent") {
+			// Its own page, with what played lately to go back to.
+			if lately, err := lib.src.Recent(); err == nil {
+				home = withRecent(home, lately)
 			}
 		}
 		a.post(func() {
@@ -740,4 +750,18 @@ func (a *app) sourceSwitcher(c *ui.Context) {
 	if b.Changed() {
 		a.switchSource(chosen)
 	}
+}
+
+// withRecent adds to a source's own Home the songs it played lately, the
+// first few, after the songs it leads with: what the listener most often goes
+// back to. Only after another section of songs, which the page's card shows:
+// the first of them would take its place.
+func withRecent(home *music.Browse, recent []music.Track) *music.Browse {
+	if len(recent) == 0 || len(home.Sections) == 0 || len(home.Sections[0].Tracks) == 0 {
+		return home
+	}
+	out := *home
+	sec := music.Section{Title: T("Continue Listening"), Tracks: recent[:min(len(recent), 5)]}
+	out.Sections = append([]music.Section{home.Sections[0], sec}, home.Sections[1:]...)
+	return &out
 }

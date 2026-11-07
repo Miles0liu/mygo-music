@@ -305,6 +305,7 @@ func (a *app) sectionPage(c *ui.Context) {
 	if sec.Subtitle != "" {
 		about += " · " + sec.Subtitle
 	}
+	a.bar = pageBar{title: title, tracks: sec.Tracks, past: a.bar.past}
 	a.trackRows(c, sec.Tracks, true, func(c *ui.Context) {
 		ui.Row(c).Gap(28).AlignItems(ui.End).Padding(0, 0, 26, 0).Children(func() {
 			a.dayCover(c, sec.Tracks, now)

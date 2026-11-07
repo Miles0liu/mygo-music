@@ -602,10 +602,14 @@ func (a *app) paneTab(c *ui.Context, i int, label string) {
 		// The count rolls as it changes, from one song's to the next.
 		n, text := a.commentCount(), ""
 		if n > 0 {
-			text = " " + count(n)
+			text = count(n)
 		}
-		ui.Text(c, label).FontSize(13).FontWeight(600).TextColor(fg)
-		rollCount(c, &a.tabCount, n, text, fg)
+		// Apart from the label by a gap of its own: a space alone, rolled
+		// as a character, takes no room.
+		ui.Row(c).Gap(5).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, label).FontSize(13).FontWeight(600).TextColor(fg)
+			rollCount(c, &a.tabCount, n, text, fg.Alpha(0.75))
+		})
 	})
 	if b.Clicked() {
 		a.choosePane(i)
