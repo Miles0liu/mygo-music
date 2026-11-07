@@ -146,6 +146,7 @@ func settingsMatch(query string, texts ...string) bool {
 
 func (a *app) settingsView(c *ui.Context) {
 	t := *c.Theme()
+	applyTypography(&t)
 	p := paletteFor(&t)
 	useAccent(&t, p)
 	c.SetTheme(&t)

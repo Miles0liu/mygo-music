@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/egoist/mygo/ui"
+	"mygo-music/internal/i18n"
 	"mygo-music/internal/lyrics"
 	"mygo-music/internal/music"
 	"slices"
@@ -189,6 +190,58 @@ func TestLocatePlayingTrack(t *testing.T) {
 	if a.pl.Playing() || !a.trackSelection.Has(trackIdentity(tr[120])) {
 		t.Fatal("locating changed playback or lost highlight")
 	}
+	if _, ok := tt.Find("Locate Playing Song"); ok {
+		t.Fatal("locate button stayed after the song became visible")
+	}
+	// The list still builds this row, but the page header covers it.
+	a.trackList.ScrollTo(121, ui.Start)
+	tt.Frame()
+	tt.Frame()
+	tt.Scroll(600, 300, 0, 100)
+	tt.Frame()
+	tt.Frame()
+	if _, ok := tt.Find("Locate Playing Song"); !ok {
+		t.Fatal("locate button did not return after scrolling the song behind the header")
+	}
+	if err := tt.Click("Locate Playing Song"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	tt.Frame()
+	if _, ok := tt.Find("Locate Playing Song"); ok {
+		t.Fatal("locate button did not disappear again")
+	}
+	a.pl.Cue([]music.Track{tr[0]})
+	tt.Frame()
+	if _, ok := tt.Find("Locate Playing Song"); !ok {
+		t.Fatal("off-screen next song did not restore locate button")
+	}
+}
+
+// With MM_FRAMES, inspect Chinese navigation at its real size and weight.
+func TestChineseTypographyFrame(t *testing.T) {
+	dir := framesDir(t)
+	previous := i18n.Language()
+	i18n.SetLanguage(i18n.Chinese)
+	defer i18n.SetLanguage(previous)
+	a := newTestApp()
+	a.route = route{page: pageShows, src: "fake"}
+	tt := ui.NewTester(func(c *ui.Context) {
+		theme := *c.Theme()
+		applyTypography(&theme)
+		c.SetTheme(&theme)
+		a.pal = paletteFor(&theme)
+		ui.Column(c).Width(232).Padding(12).Gap(4).Background(a.pal.sidebar).Children(func() {
+			a.navItem(c, iconHome, "为你推荐", route{page: pageHome})
+			a.navItem(c, iconCalendar, "每日推荐", route{page: pageBrowse})
+			a.navItem(c, iconRadio, "私人 FM", route{page: pageStations})
+			a.navItem(c, iconCharts, "排行榜", route{page: pageBrowse, id: "charts"})
+			a.navItem(c, iconPodcast, "播客", route{page: pageShows})
+		})
+	}, 232, 230)
+	tt.SetDark(true)
+	tt.Frame()
+	saveFrame(t, dir, "chinese-navigation.png", tt.Image())
 }
 
 // The vinyl pauses in place and reduced motion stops rotation.

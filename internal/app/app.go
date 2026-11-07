@@ -98,14 +98,17 @@ type app struct {
 	dailyBars   barState           // the bars on its play button
 	settingText map[string]*string // the settings of sources, as being typed
 
-	trackList           ui.ListState
-	trackSelection      ui.Selection[string]
-	trackAnchor         string
-	trackFocus          string
-	trackCursor         int
-	trackSelectionRoute route
-	trackSelectionReady bool
-	shell               desktopShell
+	trackList            ui.ListState
+	trackPlayingRow      ui.Handle
+	trackPlayingID       string
+	trackVisibilityFrame bool
+	trackSelection       ui.Selection[string]
+	trackAnchor          string
+	trackFocus           string
+	trackCursor          int
+	trackSelectionRoute  route
+	trackSelectionReady  bool
+	shell                desktopShell
 	// Where the page and the sidebar are scrolled, kept while Now Playing
 	// covers them, unbuilt.
 	pageScroll ui.ScrollState

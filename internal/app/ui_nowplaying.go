@@ -342,6 +342,11 @@ func (a *app) nowPlayingBody(c *ui.Context, tr *music.Track, art *artwork, accen
 		// The cover leaves room above it for the tabs, starting as far
 		// under them as the wall's song does.
 		coverSize := max(float32(160), min(side, h-340*scale))
+		coverHeight := coverSize
+		if a.settings.CoverStyle == "vinyl" {
+			coverSize = max(160, min(side, (h-340*scale)/1.24))
+			coverHeight = vinylHeight(coverSize)
+		}
 		// The column is as wide as the cover, for the cover, what plays
 		// and the tabs over it to start at one edge, but wide enough for
 		// the controls.
@@ -353,7 +358,7 @@ func (a *app) nowPlayingBody(c *ui.Context, tr *music.Track, art *artwork, accen
 			ui.Column(c).Width(side).Justify(ui.Center).Gap(0).Children(func() {
 				coverTop = ui.Box(c.Key("cover-top")).Height(0).LayoutBounds().Y
 				// The cover flies out of the bar's as Now Playing opens.
-				a.npMorph(c, ui.Box(c.Key("cover-morph")).Size(coverSize, coverSize).AlignSelf(ui.Start)).Children(func() {
+				a.npMorph(c, ui.Box(c.Key("cover-morph")).Size(coverSize, coverHeight).AlignSelf(ui.Start)).Children(func() {
 					a.npCover(c, tr, art, coverSize)
 				})
 

@@ -443,6 +443,17 @@ func (a *app) trackRows(c *ui.Context, tracks []music.Track, covers bool, header
 		pid = a.route.id
 	}
 	a.prepareTrackSelection(c, tracks)
+	playingID := ""
+	if tr := a.pl.Current(); tr != nil {
+		playingID = trackIdentity(*tr)
+	}
+	if a.trackPlayingID != playingID {
+		a.trackPlayingRow, a.trackPlayingID = ui.Handle{}, playingID
+	}
+	if a.trackVisibilityFrame {
+		c.AnimationFrame()
+		a.trackVisibilityFrame = false
+	}
 	top, bottom := a.insets(c)
 	// Rows out of view are not built, their marks with them: a list
 	// scrolled away from its start or end has content under the bars.
@@ -464,7 +475,13 @@ func (a *app) trackRows(c *ui.Context, tracks []music.Track, covers bool, header
 			return
 		}
 		a.trackRow(c, tracks, i-1, covers, pid, true)
-	}).Grow(1).Padding(top+pageGap, pagePad-12, bottom+70, pagePad-12).ScrollbarInsets(top, 0, bottom, 0)
+	}).Grow(1).Padding(top+pageGap, pagePad-12, bottom+70, pagePad-12).ScrollbarInsets(top, 0, bottom, 0).
+		HandleInput(func(ev ui.InputEvent) bool {
+			if ev.Kind == ui.InputScroll {
+				a.trackVisibilityFrame = true
+			}
+			return false
+		})
 	a.locatePlayingButton(c, tracks, bottom)
 }
 
@@ -489,6 +506,9 @@ func (a *app) trackRow(c *ui.Context, tracks []music.Track, i int, covers bool, 
 	}
 	row := ui.ButtonBase(c.Key(tr.ID)).Height(54).PaddingX(12).Gap(14).Radius(10).AlignItems(ui.Center).FocusRing(false).Label(tr.Name).
 		TextColor(p.text).ContextMenu(menu)
+	if selecting && playing {
+		row.Bind(&a.trackPlayingRow)
+	}
 	hovered := row.Hovered()
 	bg := ui.Transparent
 	switch {

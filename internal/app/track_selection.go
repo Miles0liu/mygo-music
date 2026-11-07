@@ -176,15 +176,29 @@ func (a *app) changeSelectedPlaylist(lib *library, pid string, ids []string, rem
 
 func (a *app) locatePlayingButton(c *ui.Context, tracks []music.Track, bottom float32) {
 	at := slices.IndexFunc(tracks, func(tr music.Track) bool { return sameTrack(a.pl.Current(), &tr) })
-	if at < 0 {
+	if at < 0 || a.playingTrackVisible(c, at+1) {
 		return
 	}
 	p := a.pal
 	ui.Box(c.Key("locate-playing")).Absolute().Right(24).Bottom(bottom + 20).Children(func() {
-		if pillButton(c, iconRadio, T("Locate Playing Song"), p.accent, ui.RGB(255, 255, 255)).
-			Shadow(0, 4, 14, 0, p.text.Alpha(0.15)).Tooltip(T("Locate Playing Song")).Clicked() {
+		if pillButton(c, iconRadio, T("Locate Playing Song"), p.accent.Alpha(0.76), ui.RGB(255, 255, 255)).
+			Border(1, ui.RGBA(255, 255, 255, 0.14)).Shadow(0, 4, 14, 0, p.text.Alpha(0.10)).Tooltip(T("Locate Playing Song")).Clicked() {
 			a.selectTrack(tracks, at, 0)
 			a.trackList.ScrollTo(at+1, ui.Center)
+			a.trackVisibilityFrame = true
 		}
 	})
+}
+
+// Rows behind the header/player or built as virtual-list overscan are not
+// visible to the listener. Any exposed part of the song row counts as visible.
+func (a *app) playingTrackVisible(c *ui.Context, row int) bool {
+	first, last := a.trackList.Visible()
+	if row < first || row > last {
+		return false
+	}
+	bounds := a.trackPlayingRow.Bounds(c)
+	viewport := a.trackList.Bounds(c)
+	top, bottom := a.insets(c)
+	return bounds.H > 0 && bounds.Y+bounds.H > viewport.Y+top && bounds.Y < viewport.Y+viewport.H-bottom
 }
