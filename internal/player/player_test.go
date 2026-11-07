@@ -239,7 +239,7 @@ func (s picky) Stream(id, _ string) (*music.Stream, error) {
 		return nil, music.ErrUnavailable
 	}
 	path, err := filepath.Abs("testdata/seek.mp3")
-	return &music.Stream{URL: "file://" + filepath.ToSlash(path), Type: "mp3"}, err
+	return &music.Stream{URL: music.FileURL(path), Type: "mp3"}, err
 }
 
 // pickyQueue is a, b and c, of which b can't play.
@@ -278,6 +278,9 @@ func TestPickedTrackStays(t *testing.T) {
 	}
 	p.Jump(0)
 	settle(t, ch, p)
+	if p.Current().ID != "a" || !p.Playing() || p.Err() != "" {
+		t.Fatalf("jumped to %s, playing %v, err %q", p.Current().ID, p.Playing(), p.Err())
+	}
 	p.Jump(1)
 	settle(t, ch, p)
 	if p.Current().ID != "b" || p.Playing() {
@@ -293,6 +296,9 @@ func TestPrevSkipsBack(t *testing.T) {
 	defer p.stop()
 	p.PlayTrack(q, 2)
 	settle(t, ch, p)
+	if p.Current().ID != "c" || !p.Playing() || p.Err() != "" {
+		t.Fatalf("initial track %s, playing %v, err %q", p.Current().ID, p.Playing(), p.Err())
+	}
 	p.Prev()
 	settle(t, ch, p)
 	if p.Current().ID != "a" || !p.Playing() {
