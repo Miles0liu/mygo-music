@@ -952,7 +952,9 @@ func TestSettingsAllowPrograms(t *testing.T) {
 	if err := settings.Click("Allow Programs"); err != nil {
 		t.Fatal(err)
 	}
-	runPost(t, ch)
+	// Source reloads post callbacks too; wait for the permission change,
+	// rather than assuming the next callback belongs to this grant.
+	until(t, ch, src.Granted)
 	if !src.Granted() {
 		t.Fatal("not allowed after allowing")
 	}
@@ -960,7 +962,7 @@ func TestSettingsAllowPrograms(t *testing.T) {
 	if err := settings.Click("Stop Allowing"); err != nil {
 		t.Fatal(err)
 	}
-	runPost(t, ch)
+	until(t, ch, func() bool { return !src.Granted() })
 	if src.Granted() {
 		t.Fatal("still allowed after stopping")
 	}
