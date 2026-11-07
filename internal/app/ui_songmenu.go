@@ -26,6 +26,10 @@ func (a *app) songMenu(c *ui.Context, tr *music.Track, size float32, color ui.Co
 func (a *app) songItems(tr *music.Track, pid string) func(m *ui.Menu) {
 	return func(m *ui.Menu) {
 		lib := a.trackLib(tr)
+		if m.Item(T("Play")).Disabled(tr.Unavailable).Chosen() {
+			a.pl.PlayTrack([]music.Track{*tr}, 0)
+		}
+		m.Separator()
 		if m.Item(T("Copy Title")).Chosen() {
 			copyText(tr.Name)
 		}

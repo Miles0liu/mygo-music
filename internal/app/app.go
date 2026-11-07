@@ -98,7 +98,14 @@ type app struct {
 	dailyBars   barState           // the bars on its play button
 	settingText map[string]*string // the settings of sources, as being typed
 
-	trackList ui.ListState
+	trackList           ui.ListState
+	trackSelection      ui.Selection[string]
+	trackAnchor         string
+	trackFocus          string
+	trackCursor         int
+	trackSelectionRoute route
+	trackSelectionReady bool
+	shell               desktopShell
 	// Where the page and the sidebar are scrolled, kept while Now Playing
 	// covers them, unbuilt.
 	pageScroll ui.ScrollState
@@ -352,6 +359,7 @@ func Run() error {
 		a.pl.Changed = func() {
 			a.keepSession()
 			a.syncCaptions()
+			a.syncDesktop()
 		}
 		a.volume = a.settings.Volume
 		a.pl.SetVolume(a.volume)
@@ -372,6 +380,7 @@ func Run() error {
 			BackgroundColor:      "light-dark(#ffffff, #141416)",
 			Content:              ui.View(a.view),
 		})
+		a.initDesktop()
 		a.setMenu()
 		a.boot()
 		// The notch player is macOS's, over its menu bar: elsewhere it would
@@ -425,6 +434,7 @@ func Run() error {
 		if a.tray != nil {
 			a.tray.Destroy()
 		}
+		a.closeDesktop()
 		a.closeSources()
 	})
 	mygo.App.OnWindowAllClosed(func() {})

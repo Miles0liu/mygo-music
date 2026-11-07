@@ -354,6 +354,16 @@ func (a *app) settingsSections(c *ui.Context, p palette) []settingsSection {
 				a.changed()
 			}
 		})
+		row(T("Cover Style"), "", func() {
+			at := 0
+			if s.CoverStyle == "vinyl" {
+				at = 1
+			}
+			if i, ok := choice(c, "cover-style", T("Cover Style"), []string{N("Album Artwork"), N("Spinning Vinyl")}, at); ok {
+				s.CoverStyle = []string{"", "vinyl"}[i]
+				a.changed()
+			}
+		})
 		// Only on macOS: elsewhere the icon is always in the notification
 		// area.
 		if runtime.GOOS == "darwin" {

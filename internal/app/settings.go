@@ -50,6 +50,8 @@ type settings struct {
 	// closes it back into it: an experiment the listener turns on. Off, it
 	// slides up from the bottom of the window.
 	GrowFromCover bool `json:"growFromCover"`
+	// CoverStyle chooses the interactive cover or a rotating vinyl record.
+	CoverStyle string `json:"coverStyle,omitempty"`
 	// Smoke makes the progress bars comets trailing smoke as music plays,
 	// for a few percent of a core: the listener turns it on.
 	Smoke bool `json:"smoke"`

@@ -2,6 +2,15 @@ package i18n
 
 // zhCN is the app's text in Simplified Chinese, by its English.
 var zhCN = map[string]string{
+	"Couldn't update the playlist. Try again later.": "无法更新歌单，请稍后重试。",
+	"Paused":                       "已暂停",
+	"Spinning Vinyl":               "旋转黑胶",
+	"Album Artwork":                "专辑封面",
+	"Cover Style":                  "封面风格",
+	"Locate Playing Song":          "定位正在播放",
+	"Copy Titles and Artists":      "复制歌名和歌手",
+	"Play Selected":                "播放所选歌曲",
+	"%d songs selected":            "已选择 %d 首歌曲",
 	"%.1f GB used":                 "已用 %.1f GB",
 	"%d MB used":                   "已用 %d MB",
 	"%d albums":                    "%d 张专辑",

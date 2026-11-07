@@ -89,6 +89,10 @@ const swipeRest = 140 * time.Millisecond
 // npCover shows the cover of tr, size across, which the pointer tilts,
 // drags and flings.
 func (a *app) npCover(c *ui.Context, tr *music.Track, art *artwork, size float32) {
+	if a.settings.CoverStyle == "vinyl" {
+		a.vinylCover(c, tr, art, size)
+		return
+	}
 	cs, pl := &a.npCoverState, a.pl
 	far := size * 1.5 // where a cover flies off to
 	fling := func(dir int) {

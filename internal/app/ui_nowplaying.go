@@ -337,17 +337,18 @@ func (a *app) nowPlayingBody(c *ui.Context, tr *music.Track, art *artwork, accen
 			return
 		}
 
-		side := float32(math.Min(float64(w)*0.36, 440))
+		scale := npContentScale(w)
+		side := min(w*0.32, max(float32(440), min(w*0.24, 820)))
 		// The cover leaves room above it for the tabs, starting as far
 		// under them as the wall's song does.
-		coverSize := min(side, h-436)
+		coverSize := max(float32(160), min(side, h-340*scale))
 		// The column is as wide as the cover, for the cover, what plays
 		// and the tabs over it to start at one edge, but wide enough for
 		// the controls.
 		side = max(coverSize, 280)
 		padX := npSideX(w)
 		a.npRise(reveal(npTabsRow(c, w), pointerIn), 0).Children(func() { a.paneTabs(c) })
-		ui.Row(c).Grow(1).Padding(0, padX, 44, padX).Gap(72).AlignItems(ui.Stretch).Children(func() {
+		ui.Row(c).Grow(1).Padding(0, padX, 44, padX).Gap(npColumnGap(w)).AlignItems(ui.Stretch).Children(func() {
 			var coverTop float32
 			ui.Column(c).Width(side).Justify(ui.Center).Gap(0).Children(func() {
 				coverTop = ui.Box(c.Key("cover-top")).Height(0).LayoutBounds().Y
@@ -361,8 +362,8 @@ func (a *app) nowPlayingBody(c *ui.Context, tr *music.Track, art *artwork, accen
 						if r := pl.Radio(); r != "" {
 							a.radioChip(c, r)
 						}
-						ui.Text(c, tr.Name).FontSize(22).FontWeight(700).LetterSpacing(-0.3).SingleLine()
-						a.artistLinks(c, tr, white.Alpha(0.6), white, true).FontSize(15).SingleLine()
+						ui.Text(c, tr.Name).FontSize(22 * scale).FontWeight(700).LetterSpacing(-0.3).SingleLine()
+						a.artistLinks(c, tr, white.Alpha(0.6), white, true).FontSize(15 * scale).SingleLine()
 					})
 					a.likeButton(c.Key("like"), tr, 22, white.Alpha(0.7))
 					a.songMenu(c.Key("more"), tr, 22, white.Alpha(0.7)).Margin(0, -8, 0, 0)
@@ -370,8 +371,8 @@ func (a *app) nowPlayingBody(c *ui.Context, tr *music.Track, art *artwork, accen
 				a.npRise(a.scrubber(c.Key("np-scrub"), &a.npScrub, white.Alpha(0.18), white.Alpha(0.9), 16, accent.Mix(white, 0.35)), 2)
 				// As tall with the quality's badge as without it: the badge goes
 				// while the next song loads, and the column would move with it.
-				a.npRise(ui.Row(c).Height(16).AlignItems(ui.Center), 2).Children(func() {
-					ui.Text(c, clock(pl.Position())).FontSize(11).FontFeatures("tnum").TextColor(white.Alpha(0.5))
+				a.npRise(ui.Row(c).Height(16*scale).AlignItems(ui.Center), 2).Children(func() {
+					ui.Text(c, clock(pl.Position())).FontSize(11 * scale).FontFeatures("tnum").TextColor(white.Alpha(0.5))
 					ui.Spacer(c)
 					qualityBadge(c, pl.Stream())
 					ui.Spacer(c)
@@ -379,13 +380,13 @@ func (a *app) nowPlayingBody(c *ui.Context, tr *music.Track, art *artwork, accen
 					if pl.Loading() {
 						status = T("Buffering…")
 					}
-					ui.Text(c, status).FontSize(11).FontFeatures("tnum").TextColor(white.Alpha(0.5))
+					ui.Text(c, status).FontSize(11 * scale).FontFeatures("tnum").TextColor(white.Alpha(0.5))
 				})
 				a.npRise(ui.Box(c).Margin(14, 0, 18, 0), 3).Children(func() {
-					a.transport(c, white, white.Alpha(0.45), accent, 28)
+					a.transport(c, white, white.Alpha(0.45), accent, 28*scale)
 				})
 				a.npRise(ui.Row(c).Justify(ui.Center), 4).Children(func() {
-					a.volumeSlider(c, white.Alpha(0.7), white.Alpha(0.18), 180)
+					a.volumeSlider(c, white.Alpha(0.7), white.Alpha(0.18), 180*scale)
 				})
 			})
 
@@ -422,14 +423,14 @@ func (a *app) nowPlayingBody(c *ui.Context, tr *music.Track, art *artwork, accen
 	}
 }
 
-// npMaxWidth is how wide the cover and the pane beside it go, at most.
+// npMaxWidth is the baseline content width before ultrawide expansion.
 const npMaxWidth = 1280
 
 // npSideX is how far in from the sides of a view w wide the cover and the
 // pane beside it are: in a wide window they keep together in the middle,
 // rather than the pane taking all the width the cover leaves.
 func npSideX(w float32) float32 {
-	return max(72, (w-npMaxWidth)/2)
+	return max(40, (w-max(float32(npMaxWidth), min(w*0.78, 2800)))/2)
 }
 
 // npTabsHeight is how tall the row of Now Playing's tabs is, for what is
@@ -645,7 +646,7 @@ func (a *app) lyricsPane(c *ui.Context, tr *music.Track, h float32) {
 		scroll.Invisible()
 	}
 	defer a.quietCard(c, dim, h*0.18)
-	a.timedLines(c, scroll, lines, pos, cur, lag, linesStyle{size: 30, weight: 800, lineHeight: 1.25, quiet: quiet}, nil)
+	a.timedLines(c, scroll, lines, pos, cur, lag, linesStyle{size: npLyricSize(c), weight: 800, lineHeight: 1.25, quiet: quiet}, nil)
 }
 
 // linesStyle is how timedLines sets its lines: the size, weight and

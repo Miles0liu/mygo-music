@@ -435,13 +435,14 @@ func (a *app) freshenLiked(lib *library) {
 }
 
 // trackRows lists tracks under a header, which scrolls with them; a click
-// plays the list from the track clicked.
+// selects a song, and a double click plays it.
 func (a *app) trackRows(c *ui.Context, tracks []music.Track, covers bool, header func(c *ui.Context), footer ...func(c *ui.Context)) {
 	// A song's menu can take it out of the playlist it is listed in.
 	var pid string
 	if a.route.page == pagePlaylist {
 		pid = a.route.id
 	}
+	a.prepareTrackSelection(c, tracks)
 	top, bottom := a.insets(c)
 	// Rows out of view are not built, their marks with them: a list
 	// scrolled away from its start or end has content under the bars.
@@ -462,8 +463,9 @@ func (a *app) trackRows(c *ui.Context, tracks []music.Track, covers bool, header
 			footer[i-len(tracks)-1](c)
 			return
 		}
-		a.trackRow(c, tracks, i-1, covers, pid)
-	}).Grow(1).Padding(top+pageGap, pagePad-12, bottom+32, pagePad-12).ScrollbarInsets(top, 0, bottom, 0)
+		a.trackRow(c, tracks, i-1, covers, pid, true)
+	}).Grow(1).Padding(top+pageGap, pagePad-12, bottom+70, pagePad-12).ScrollbarInsets(top, 0, bottom, 0)
+	a.locatePlayingButton(c, tracks, bottom)
 }
 
 // sameTrack reports whether two tracks are one: IDs are their source's.
@@ -471,20 +473,27 @@ func sameTrack(x, y *music.Track) bool {
 	return x != nil && y != nil && x.ID == y.ID && x.Source == y.Source
 }
 
-// trackRow is a row of the list tracks, its track i, which plays the list from
-// there as it's clicked.
-func (a *app) trackRow(c *ui.Context, tracks []music.Track, i int, covers bool, pid string) {
+// trackRow renders one song. Full track lists select on click and play on
+// double click; compact discovery sections keep their direct play action.
+func (a *app) trackRow(c *ui.Context, tracks []music.Track, i int, covers bool, pid string, selectable ...bool) {
 	p := a.pal
 	tr := &tracks[i]
 	w, _ := c.Size()
 	// An album's page has no column of the album its songs are on.
 	wide := w-sidebarWidth > 820 && a.route.page != pageAlbum
 	playing := sameTrack(a.pl.Current(), tr)
+	selecting := len(selectable) > 0 && selectable[0]
+	menu := a.songItems(tr, pid)
+	if selecting {
+		menu = a.selectedSongItems(tracks, i, pid)
+	}
 	row := ui.ButtonBase(c.Key(tr.ID)).Height(54).PaddingX(12).Gap(14).Radius(10).AlignItems(ui.Center).FocusRing(false).Label(tr.Name).
-		ContextMenu(a.songItems(tr, pid))
+		TextColor(p.text).ContextMenu(menu)
 	hovered := row.Hovered()
 	bg := ui.Transparent
 	switch {
+	case selecting && a.trackSelection.Has(trackIdentity(*tr)):
+		bg = p.accent.Alpha(0.22)
 	case playing:
 		bg = p.accent.Alpha(0.09)
 	case hovered:
@@ -535,7 +544,15 @@ func (a *app) trackRow(c *ui.Context, tracks []music.Track, i int, covers bool, 
 		})
 		ui.Text(c, clock(tr.Length())).FontSize(12.5).FontFeatures("tnum").TextColor(p.faint).Width(44).TextAlign(ui.End)
 	})
-	if row.Clicked() && !tr.Unavailable {
+	if selecting {
+		row.AccessSelected(a.trackSelection.Has(trackIdentity(*tr)))
+		if row.Clicked() {
+			a.selectTrack(tracks, i, row.ClickModifiers())
+		}
+		if row.DoubleClicked() && row.ClickModifiers() == 0 && !tr.Unavailable {
+			a.pl.PlayTrack(tracks, i)
+		}
+	} else if row.Clicked() && !tr.Unavailable {
 		a.pl.PlayTrack(tracks, i)
 	}
 }
